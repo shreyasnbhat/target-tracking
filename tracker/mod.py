@@ -9,6 +9,11 @@ import argparse
 import imutils
 import time
 import cv2
+import matplotlib as mp
+from mpl_toolkits.mplot3d import Axes3D
+import numpy as np
+import matplotlib.pyplot as plt
+from collections import defaultdict
 from depthmap.monodepth_simple import generate_depth_map_frame, params, init
 from tracker.pyimagesearch.centroidtracker import CentroidTracker
 
@@ -49,16 +54,24 @@ init()
 framecnt = 0
 depth_map = None
 
+fourcc = cv2.VideoWriter_fourcc(*'XVID')
+out = cv2.VideoWriter('output.avi', fourcc, 20.0, (512, 256))
+
+coordinates = defaultdict(list)
+
 # loop over the frames from the video stream
 while True:
     # grab the frame from the threaded video stream and resize it
     # to have a maximum width of 400 pixels
     _, frame = vs.read()
-    frame = cv2.resize(frame,(512,256))
+    frame = cv2.resize(frame, (512, 256))
 
-    if framecnt % 20 == 0:
+    if framecnt % 100 == 0:
         depth_map = generate_depth_map_frame(params, frame, args["file"])
         print("Depth Map Generated for frame", framecnt)
+
+    if framecnt == 500:
+        break
 
     # grab the frame dimensions and convert it to a blob
     (h, w) = frame.shape[:2]
@@ -106,11 +119,13 @@ while True:
                 cv2.line(frame, (prev[0], prev[1]), (centroid[0], centroid[1]), ct.colours[objectID], 1)
             prev = centroid
 
-
-
     for (objectID, centroid) in objects.items():
         # draw both the ID of the object and the centroid of the
         # object on the output frame
+        scaledX = int(centroid[0] / 512 * 100)
+        scaledY = int(centroid[1] / 256 * 100)
+        coordinates[objectID].append((scaledX, scaledY, ct.depth[objectID][-1]))
+        print(coordinates)
         text = str(ct.depth[objectID][-1])
         cv2.putText(frame, text, (centroid[0] - 10, centroid[1] - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
@@ -118,6 +133,7 @@ while True:
 
     # show the output frame
     cv2.imshow("Frame", frame)
+    out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
     key = cv2.waitKey(1) & 0xFF
 
     # if the `q` key was pressed, break from the loop
@@ -136,4 +152,37 @@ print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 
 # do a bit of cleanup
 cv2.destroyAllWindows()
-#vs.stop()
+out.release()
+
+## Process plots
+
+for i in coordinates:
+    xs = []
+    ys = []
+    zs = []
+
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+
+    for x,y,z in coordinates[i]:
+        xs.append(x)
+        ys.append(y)
+        zs.append(z)
+        if len(xs) > 1:
+            ax.plot([xs[-1], xs[-2]], [ys[-1], ys[-2]], [zs[-1], zs[-2]], color='b')
+
+    ax.scatter(xs, ys, zs, marker='o')
+
+    ax.set_xlim3d(min(xs) - 2, max(xs) + 2)
+    ax.set_ylim3d(min(ys) - 2, max(ys) + 2)
+    ax.set_zlim3d(0,max(zs) + 2)
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    plt.savefig("plots/3d/track_" + str(i) + ".png")
+
+    plt.clf()
+    plt.plot(xs,zs)
+    plt.savefig("plots/2d/track_" + str(i) + ".png")
+
+# vs.stop()
