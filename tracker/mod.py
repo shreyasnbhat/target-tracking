@@ -4,14 +4,11 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 # import the necessary packages
 from imutils.video import FPS
-import numpy as np
 import argparse
-import imutils
 import time
 import cv2
-import matplotlib as mp
-from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
+from tracker.plotter import smooth_plot_2d, smooth_plot_3d
 import matplotlib.pyplot as plt
 from collections import defaultdict
 from depthmap.monodepth_simple import generate_depth_map_frame, params, init
@@ -154,35 +151,17 @@ print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 cv2.destroyAllWindows()
 out.release()
 
-## Process plots
-
 for i in coordinates:
     xs = []
     ys = []
     zs = []
 
-    fig = plt.figure()
-    ax = plt.axes(projection='3d')
-
-    for x,y,z in coordinates[i]:
+    for x, y, z in coordinates[i]:
         xs.append(x)
         ys.append(y)
         zs.append(z)
-        if len(xs) > 1:
-            ax.plot([xs[-1], xs[-2]], [ys[-1], ys[-2]], [zs[-1], zs[-2]], color='b')
 
-    ax.scatter(xs, ys, zs, marker='o')
-
-    ax.set_xlim3d(min(xs) - 2, max(xs) + 2)
-    ax.set_ylim3d(min(ys) - 2, max(ys) + 2)
-    ax.set_zlim3d(0,max(zs) + 2)
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    plt.savefig("plots/3d/track_" + str(i) + ".png")
-
+    smooth_plot_3d(xs, ys, zs, "plots/3d/track_" + str(i) + ".png")
     plt.clf()
-    plt.plot(xs,zs)
-    plt.savefig("plots/2d/track_" + str(i) + ".png")
-
-# vs.stop()
+    smooth_plot_2d(xs, zs, "plots/2d/track_" + str(i) + ".png")
+    break
